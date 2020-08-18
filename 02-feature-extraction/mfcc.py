@@ -1,24 +1,26 @@
 import librosa
 import numpy as np
 from scipy.fftpack import dct
+from librosa.feature import mfcc
+from librosa.filters import mel
 
 # If you want to see the spectrogram picture
-# import matplotlib
-# matplotlib.use('Agg')
-# import matplotlib.pyplot as plt
-# def plot_spectrogram(spec, note,file_name):
-#     """Draw the spectrogram picture
-#         :param spec: a feature_dim by num_frames array(real)
-#         :param note: title of the picture
-#         :param file_name: name of the file
-#     """ 
-#     fig = plt.figure(figsize=(20, 5))
-#     heatmap = plt.pcolor(spec)
-#     fig.colorbar(mappable=heatmap)
-#     plt.xlabel('Time(s)')
-#     plt.ylabel(note)
-#     plt.tight_layout()
-#     plt.savefig(file_name)
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+def plot_spectrogram(spec, note,file_name):
+    """Draw the spectrogram picture
+        :param spec: a feature_dim by num_frames array(real)
+        :param note: title of the picture
+        :param file_name: name of the file
+    """
+    fig = plt.figure(figsize=(20, 5))
+    heatmap = plt.pcolor(spec)
+    fig.colorbar(mappable=heatmap)
+    plt.xlabel('Time(s)')
+    plt.ylabel(note)
+    plt.tight_layout()
+    plt.savefig(file_name)
 
 
 #preemphasis config 
@@ -82,10 +84,45 @@ def fbank(spectrum, num_filter = num_filter):
         DON'T FORGET LOG OPRETION AFTER MEL FILTER!
     """
 
-    feats=np.zeros((int(fft_len/2+1), num_filter))
-    """
-        FINISH by YOURSELF
-    """
+    # 计算功率谱
+    spectrum = spectrum*spectrum/fft_len
+    num_frames = spectrum.shape[0]
+    banks = np.zeros((int(fft_len / 2 + 1), num_filter))
+    feats = np.zeros((num_frames, num_filter))
+
+    # 线性频率转梅尔频率
+    def hertz_to_mels(f):
+        return 1127. * np.log(1. + f / 700.)
+
+    # Mel频率转线性频率
+    def mel_to_hertz(mel):
+        return 700. * (np.exp(mel / 1127.) - 1.)
+
+    fmin = 0
+    fmax = fs / 2
+
+    # Mel刻度上等间隔划分，第一个滤波器的起始频率+最后一个滤波器的截止频，总共 num_filt + 2 个点
+    grid_mels = np.linspace(hertz_to_mels(fmin), hertz_to_mels(fmax), num_filter + 2, True)
+
+    # Mel等间隔刻度转线性频率刻度
+    grid_hertz = mel_to_hertz(grid_mels)
+
+    # 连续频率值转离散频率点 f = k*fs/N
+    grid_indices = (grid_hertz * fft_len / fs).astype(int)
+
+    # 三角滤波器
+    for i in range(0, banks.shape[1]):
+        left = grid_indices[i]
+        middle = grid_indices[i + 1]
+        right = grid_indices[i + 2]
+        banks[left:middle, i] = np.linspace(0., 1., middle - left, False)
+        banks[middle:right, i] = np.linspace(1., 0., right - middle, False)
+
+    # fbank
+    feats = np.dot(spectrum, banks)
+
+    # 取对数
+    feats = 20*np.log10(feats)
     return feats
 
 def mfcc(fbank, num_mfcc = num_mfcc):
@@ -96,9 +133,8 @@ def mfcc(fbank, num_mfcc = num_mfcc):
     """
 
     feats = np.zeros((fbank.shape[0],num_mfcc))
-    """
-        FINISH by YOURSELF
-    """
+    # Type II DCT
+    feats = dct(fbank, norm='ortho')[:, 1:num_mfcc+1]
     return feats
 
 def write_file(feats, file_name):
@@ -122,10 +158,10 @@ def main():
     frames = enframe(signal)
     spectrum = get_spectrum(frames)
     fbank_feats = fbank(spectrum)
-    mfcc_feats = mfcc(fbank_feats)
-    # plot_spectrogram(fbank_feats, 'Filter Bank','fbank.png')
+    mfcc_feats = mfcc(fbank_feats)  
+    plot_spectrogram(fbank_feats.T, 'Filter Bank','fbank.png')
     write_file(fbank_feats,'./test.fbank')
-    # plot_spectrogram(mfcc_feats.T, 'MFCC','mfcc.png')
+    plot_spectrogram(mfcc_feats.T, 'MFCC','mfcc.png')
     write_file(mfcc_feats,'./test.mfcc')
 
 if __name__ == '__main__':
