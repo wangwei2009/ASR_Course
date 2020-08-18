@@ -1,4 +1,5 @@
 # Author: Kaituo Xu, Fan Yu
+import numpy as np
 
 def forward_algorithm(O, HMM_model):
     """HMM Forward Algorithm.
@@ -13,6 +14,21 @@ def forward_algorithm(O, HMM_model):
     N = len(pi)
     prob = 0.0
     # Begin Assignment
+    alpha = np.zeros((T, 1))
+    for i in range(T):
+        alpha[i] = pi[i]*B[i][O[0]]
+
+    alpha_pre = alpha.copy()
+
+    for t in range(T-1):
+        for i in range(T):
+            tmp = 0
+            for j in range(N):
+                tmp += alpha_pre[j]*A[j][i]
+            alpha[i] = tmp * B[i][O[t+1]]
+        alpha_pre = alpha.copy()
+    for i in range(N):
+        prob += alpha[i]
 
     # Put Your Code Here
 
@@ -33,6 +49,19 @@ def backward_algorithm(O, HMM_model):
     N = len(pi)
     prob = 0.0
     # Begin Assignment
+    beta = np.ones((N, 1))
+
+    beta_t_1 = beta.copy()
+
+    for t in range(T-2, -1, -1):
+        for i in range(N):
+            tmp = 0
+            for j in range(N):
+                tmp += A[i][j]*B[j][O[t+1]]*beta[j]
+            beta_t_1[i] = tmp
+        beta = beta_t_1.copy()
+    for i in range(N):
+        prob += pi[i]*B[i][O[0]]*beta[i]
 
     # Put Your Code Here
 
@@ -54,6 +83,23 @@ def Viterbi_algorithm(O, HMM_model):
     N = len(pi)
     best_prob, best_path = 0.0, []
     # Begin Assignment
+
+    delta = np.zeros((T, T))
+    Psi = np.zeros((T, T))
+    for i in range(T):
+        delta[0, i] = pi[i]*B[i][O[0]]
+
+    for t in range(1, T):
+        for i in range(T):
+            tmp = np.zeros((N, 1))
+            for j in range(N):
+                tmp[j] = delta[t-1, j]*A[j][i]
+            delta[t, i] = np.max(tmp) * B[i][O[t]]
+            Psi[t, i] = np.argmax(tmp)
+    best_prob = np.max(delta[-1, :])
+    best_path.append(np.argmax(delta[-1, :]))
+    for t in range(T-2, -1, -1):
+        best_path.append(int(Psi[t+1, int(best_path[-1])]))
 
     # Put Your Code Here
 
